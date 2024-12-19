@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Decentralized Health Tracker</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        .section {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e1e8ed;
+        }
+        input, button, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #d1d8e0;
+            border-radius: 6px;
+        }
+        button {
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #357abd;
+        }
+        .health-record {
+            background-color: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+        }
+        #status, #error {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        #status {
+            background-color: #d1f2e3;
+            color: #0f5132;
+        }
+        #error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Decentralized Health Tracker</h1>
+        
+        <!-- Wallet Connection -->
+        <div class="section">
+            <h2>Wallet Connection</h2>
+            <button onclick="connectWallet()">Connect Wallet</button>
+            <div id="account-info"></div>
+        </div>
+
+        <!-- User Registration -->
+        <div class="section">
+            <h2>Register User Profile</h2>
+            <input type="text" id="user-name" placeholder="Full Name">
+            <input type="number" id="user-age" placeholder="Age">
+            <select id="user-gender">
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            </select>
+            <input type="number" id="user-height" placeholder="Height (cm)">
+            <button onclick="registerUser()">Register Profile</button>
+        </div>
+
+        <!-- Add Health Record -->
+        <div class="section">
+            <h2>Add Health Record</h2>
+            <input type="number" id="record-weight" placeholder="Weight (kg)">
+            <input type="number" id="record-bp-systolic" placeholder="Blood Pressure (Systolic)">
+            <input type="number" id="record-bp-diastolic" placeholder="Blood Pressure (Diastolic)">
+            <input type="number" id="record-heart-rate" placeholder="Heart Rate (bpm)">
+            <input type="number" id="record-blood-sugar" placeholder="Blood Sugar">
+            <textarea id="record-notes" placeholder="Additional Notes"></textarea>
+            <button onclick="addHealthRecord()">Add Record</button>
+        </div>
+
+        <!-- View Health Records -->
+        <div class="section">
+            <h2>My Health Records</h2>
+            <button onclick="fetchHealthRecords()">Fetch Records</button>
+            <div id="health-records-list"></div>
+        </div>
+
+        <!-- Professional Access Management -->
+        <div class="section">
+            <h2>Professional Access</h2>
+            <input type="text" id="professional-address" placeholder="Healthcare Professional Address">
+            <button onclick="grantProfessionalAccess()">Grant Access</button>
+            <button onclick="revokeProfessionalAccess()">Revoke Access</button>
+        </div>
+
+        <!-- BMI Calculator -->
+        <div class="section">
+            <h2>BMI Calculator</h2>
+            <button onclick="calculateBMI()">Calculate My BMI</button>
+            <div id="bmi-result"></div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status"></div>
+        <div id="error"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script>
+        // Contract ABI and Address (replace with your actual deployed contract details)
+        const contractABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_weight",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_bloodPressureSystolic",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_bloodPressureDiastolic",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_heartRate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_bloodSugar",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "_additionalNotes",
+				"type": "string"
+			}
+		],
+		"name": "addHealthRecord",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_professional",
+				"type": "address"
+			}
+		],
+		"name": "grantProfessionalAccess",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "HealthRecordAdded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "recordIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "HealthRecordVerified",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "professional",
+				"type": "address"
+			}
+		],
+		"name": "ProfessionalAccessGranted",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "professional",
+				"type": "address"
+			}
+		],
+		"name": "ProfessionalAccessRevoked",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_age",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "_gender",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_height",
+				"type": "uint256"
+			}
+		],
+		"name": "registerUser",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_professional",
+				"type": "address"
+			}
+		],
+		"name": "revokeProfessionalAccess",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			}
+		],
+		"name": "UserRegistered",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_recordIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "verifyHealthRecord",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "calculateBMI",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_index",
+				"type": "uint256"
+			}
+		],
+		"name": "getHealthRecordByIndex",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "weight",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodPressureSystolic",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodPressureDiastolic",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "heartRate",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodSugar",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "additionalNotes",
+						"type": "string"
+					},
+					{
+						"internalType": "bool",
+						"name": "isVerified",
+						"type": "bool"
+					}
+				],
+				"internalType": "struct HealthTracker.HealthRecord",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getHealthRecords",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "weight",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodPressureSystolic",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodPressureDiastolic",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "heartRate",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "bloodSugar",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "additionalNotes",
+						"type": "string"
+					},
+					{
+						"internalType": "bool",
+						"name": "isVerified",
+						"type": "bool"
+					}
+				],
+				"internalType": "struct HealthTracker.HealthRecord[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getUserProfile",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "userAddress",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "age",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "gender",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "height",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bool",
+						"name": "isRegistered",
+						"type": "bool"
+					}
+				],
+				"internalType": "struct HealthTracker.UserProfile",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "healthRecords",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "weight",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "bloodPressureSystolic",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "bloodPressureDiastolic",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "heartRate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "bloodSugar",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "additionalNotes",
+				"type": "string"
+			},
+			{
+				"internalType": "bool",
+				"name": "isVerified",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "professionalAccess",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "userProfiles",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "userAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "age",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "gender",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "height",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "isRegistered",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
+        const contractAddress = '0xD4215A22574E6166a4eC763e76f819d7F5030dCc'; // Replace with actual deployed contract address
+
+        let web3;
+        let contract;
+        let userAccount;
+
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    userAccount = accounts[0];
+                    
+                    web3 = new Web3(window.ethereum);
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+
+                    document.getElementById('account-info').innerHTML = 
+                        `Connected Account: ${userAccount}`;
+                    
+                    document.getElementById('status').innerHTML = 
+                        'Wallet successfully connected!';
+                } catch (error) {
+                    document.getElementById('error').innerHTML = 
+                        `Connection failed: ${error.message}`;
+                }
+            } else {
+                document.getElementById('error').innerHTML = 
+                    'Please install MetaMask!';
+            }
+        }
+
+        async function registerUser() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            const name = document.getElementById('user-name').value;
+            const age = document.getElementById('user-age').value;
+            const gender = document.getElementById('user-gender').value;
+            const height = document.getElementById('user-height').value;
+
+            try {
+                await contract.methods.registerUser(name, age, gender, height)
+                    .send({ from: userAccount });
+                
+                document.getElementById('status').innerHTML = 'User profile registered successfully!';
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `Registration failed: ${error.message}`;
+            }
+        }
+
+        async function addHealthRecord() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            const weight = document.getElementById('record-weight').value;
+            const bpSystolic = document.getElementById('record-bp-systolic').value;
+            const bpDiastolic = document.getElementById('record-bp-diastolic').value;
+            const heartRate = document.getElementById('record-heart-rate').value;
+            const bloodSugar = document.getElementById('record-blood-sugar').value;
+            const notes = document.getElementById('record-notes').value;
+
+            try {
+                await contract.methods.addHealthRecord(
+                    weight, 
+                    bpSystolic, 
+                    bpDiastolic, 
+                    heartRate, 
+                    bloodSugar, 
+                    notes
+                ).send({ from: userAccount });
+                
+                document.getElementById('status').innerHTML = 'Health record added successfully!';
+                fetchHealthRecords();
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `Add record failed: ${error.message}`;
+            }
+        }
+
+        async function fetchHealthRecords() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            try {
+                const records = await contract.methods.getHealthRecords().call({ from: userAccount });
+                const recordsList = document.getElementById('health-records-list');
+                recordsList.innerHTML = ''; // Clear previous records
+
+                records.forEach((record, index) => {
+                    const recordDiv = document.createElement('div');
+                    recordDiv.className = 'health-record';
+                    recordDiv.innerHTML = `
+                        <strong>Record ${index + 1}</strong><br>
+                        Date: ${new Date(record.timestamp * 1000).toLocaleString()}<br>
+                        Weight: ${record.weight} kg<br>
+                        Blood Pressure: ${record.bloodPressureSystolic}/${record.bloodPressureDiastolic}<br>
+                        Heart Rate: ${record.heartRate} bpm<br>
+                        Blood Sugar: ${record.bloodSugar}<br>
+                        Notes: ${record.additionalNotes}<br>
+                        Verified: ${record.isVerified ? 'Yes' : 'No'}
+                    `;
+                    recordsList.appendChild(recordDiv);
+                });
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `Fetch records failed: ${error.message}`;
+            }
+        }
+
+        async function grantProfessionalAccess() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            const professionalAddress = document.getElementById('professional-address').value;
+
+            try {
+                await contract.methods.grantProfessionalAccess(professionalAddress)
+                    .send({ from: userAccount });
+                
+                document.getElementById('status').innerHTML = 'Professional access granted successfully!';
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `Grant access failed: ${error.message}`;
+            }
+        }
+
+        async function revokeProfessionalAccess() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            const professionalAddress = document.getElementById('professional-address').value;
+
+            try {
+                await contract.methods.revokeProfessionalAccess(professionalAddress)
+                    .send({ from: userAccount });
+                
+                document.getElementById('status').innerHTML = 'Professional access revoked successfully!';
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `Revoke access failed: ${error.message}`;
+            }
+        }
+
+        async function calculateBMI() {
+            if (!userAccount) {
+                document.getElementById('error').innerHTML = 'Please connect wallet first!';
+                return;
+            }
+
+            try {
+                const bmi = await contract.methods.calculateBMI(userAccount).call();
+                document.getElementById('bmi-result').innerHTML = 
+                    `Your BMI: ${bmi / 10} (${getBMICategory(bmi / 10)})`; 
+            } catch (error) {
+                document.getElementById('error').innerHTML = 
+                    `BMI calculation failed: ${error.message}`;
+            }
+        }
+
+        function getBMICategory(bmi) {
+            if (bmi < 18.5) return 'Underweight';
+            if (bmi < 25) return 'Normal weight';
+            if (bmi < 30) return 'Overweight';
+            return 'Obese';
+        }
+
+        // Network and account change listeners
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('chainChanged', () => window.location.reload());
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                    userAccount = accounts[0];
+                    document.getElementById('account-info').innerHTML = 
+                        `Connected Account: ${userAccount}`;
+                } else {
+                    document.getElementById('account-info').innerHTML = '';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
